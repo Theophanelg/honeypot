@@ -17,6 +17,7 @@ install_python_packages() {
     echo "Installation des packages Python..."
     pip3 install --upgrade pip
     pip3 install flask colorlog
+    pip3 install colorama
 }
 
 # Fonction pour configurer l'environnement virtuel Python

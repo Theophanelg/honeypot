@@ -1,5 +1,5 @@
 import socket
-from common.logger import log_attack
+from utils.logger import log_attack
 
 def http_honeypot():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 from utils.db import get_db
 
 app = Flask(__name__)
@@ -9,9 +9,36 @@ conn, cursor = get_db()
 # Route pour afficher les logs
 @app.route('/')
 def index():
-    cursor.execute("SELECT * FROM attacks WHERE data != '' ORDER BY timestamp DESC LIMIT 50")
+    service = request.args.get('service')
+    date = request.args.get('date')
+
+    query = "SELECT * FROM attacks"
+    conditions = []
+    values = []
+
+    if service:
+        conditions.append("service = ?")
+        values.append(service)
+
+    if date:
+        conditions.append("DATE(timestamp) = ?")
+        values.append(date)
+
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+
+    query += " ORDER BY timestamp DESC LIMIT 100"
+
+    cursor.execute(query, values)
     attacks = cursor.fetchall()
-    return render_template('index.html', attacks=attacks)
+
+    cursor.execute("SELECT * FROM payloads")
+    payloads = cursor.fetchall()
+    print("Payloads :")
+    for p in payloads:
+        print(p["ip"], p["port"], p["payload"])
+
+    return render_template('index.html', attacks=attacks, payloads=payloads)
 
 @app.route('/stats')
 def stats():

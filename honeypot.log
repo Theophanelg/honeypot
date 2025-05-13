@@ -1,0 +1,68 @@
+2025-05-05 19:47:44,401 - SSH attack from 127.0.0.1:43724 -> Tentative de connexion (Type: Unknown)
+2025-05-05 19:47:55,812 - SSH attack from 127.0.0.1:43724 ->  (Type: Unknown)
+2025-05-05 19:48:10,336 - HTTP attack from 127.0.0.1:40704 -> GET / HTTP/1.1
+Host: 127.0.0.1
+User-Agent: curl/7.88.1
+Accept: */*
+
+ (Type: HTTP Request)
+2025-05-05 19:48:24,871 - FTP attack from 127.0.0.1:44408 -> Tentative de connexion (Type: Unknown)
+2025-05-05 19:48:33,948 - FTP attack from 127.0.0.1:44408 ->  (Type: Unknown)
+2025-05-05 20:21:33 - [33mFTP attack from 127.0.0.1:49976 -> Tentative de connexion (Type: Unknown)[0m
+2025-05-05 20:21:35 - [33mFTP attack from 127.0.0.1:49976 ->  (Type: Unknown)[0m
+2025-05-05 20:21:39 - [31mSSH attack from 127.0.0.1:33760 -> Tentative de connexion (Type: Unknown)[0m
+2025-05-05 20:21:40 - [31mSSH attack from 127.0.0.1:33760 ->  (Type: Unknown)[0m
+2025-05-05 20:21:43 - [34mHTTP attack from 127.0.0.1:60460 -> GET / HTTP/1.1
+Host: 127.0.0.1
+User-Agent: curl/7.88.1
+Accept: */*
+
+ (Type: HTTP Request)[0m
+2025-05-05 20:23:21 - [34mHTTP attack from 127.0.0.1:47606 -> GET / HTTP/1.1
+Host: 127.0.0.1
+User-Agent: curl/7.88.1
+Accept: */*
+
+ (Type: HTTP Request)[0m
+2025-05-05 20:23:23 - [31mSSH attack from 127.0.0.1:48436 -> Tentative de connexion (Type: Unknown)[0m
+2025-05-05 20:23:23 - [31mSSH attack from 127.0.0.1:48436 ->  (Type: Unknown)[0m
+2025-05-05 20:23:28 - [35mFTP attack from 127.0.0.1:43814 -> Tentative de connexion (Type: Unknown)[0m
+2025-05-05 20:23:29 - [35mFTP attack from 127.0.0.1:43814 ->  (Type: Unknown)[0m
+2025-05-12 17:09:26 - [31mSSH attack from 127.0.0.1:58622 -> Tentative de connexion (Type: Unknown)[0m
+2025-05-12 17:40:11 - [31mSSH attack from 127.0.0.1:58622 ->  (Type: Unknown)[0m
+2025-05-13 18:14:20 - [34mHTTP attack from 127.0.0.1:47822 -> GET / HTTP/1.1
+Host: localhost
+User-Agent: SuperBot/1.0
+Accept: */*
+
+ (Type: HTTP Request)[0m
+2025-05-13 18:14:22 - [34mHTTP attack from 127.0.0.1:60462 -> GET / HTTP/1.1
+Host: localhost
+User-Agent: SuperBot/1.0
+Accept: */*
+
+ (Type: HTTP Request)[0m
+2025-05-13 18:14:23 - [34mHTTP attack from 127.0.0.1:60464 -> GET / HTTP/1.1
+Host: localhost
+User-Agent: SuperBot/1.0
+Accept: */*
+
+ (Type: HTTP Request)[0m
+2025-05-13 18:14:23 - [34mHTTP attack from 127.0.0.1:60480 -> GET / HTTP/1.1
+Host: localhost
+User-Agent: SuperBot/1.0
+Accept: */*
+
+ (Type: HTTP Request)[0m
+2025-05-13 20:03:48 - [34mHTTP attack from 127.0.0.1:38834 -> GET / HTTP/1.1
+Host: localhost
+User-Agent: SuperBot/1.0
+Accept: */*
+
+ (Type: HTTP Request)[0m
+2025-05-13 20:07:31 - [34mHTTP attack from 127.0.0.1:45644 -> GET /?user=admin&pass=123 HTTP/1.1
+Host: localhost
+User-Agent: SuperBot/1.0
+Accept: */*
+
+ (Type: HTTP Request)[0m

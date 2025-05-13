@@ -7,7 +7,6 @@ def start_services():
     threading.Thread(target=ssh_honeypot, daemon=True).start()
     threading.Thread(target=http_honeypot, daemon=True).start()
     threading.Thread(target=ftp_honeypot, daemon=True).start()
-    print("Tous les services honeypot sont démarrés.")
 
 if __name__ == "__main__":
     print("Démarrage du honeypot...")

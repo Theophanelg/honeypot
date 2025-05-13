@@ -57,6 +57,7 @@ main() {
     setup_virtualenv
     install_virtualenv_dependencies
     make_scripts_executable
+    install_elk
     echo "Installation terminée avec succès!"
     echo "Lancez votre honeypot en exécutant : python honeypot_launcher.py"
     

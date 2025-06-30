@@ -1,61 +1,133 @@
 from flask import Flask, render_template, request
-from utils.db import get_db
+from utils.db import get_db, get_filtered_logs
+import csv
+import io
+import json
 
 app = Flask(__name__)
 
-# Connexion à la base de données
+# Connexion partagée
 conn, cursor = get_db()
 
-# Route pour afficher les logs
 @app.route('/')
 def index():
     service = request.args.get('service')
     date = request.args.get('date')
 
-    query = "SELECT * FROM attacks"
-    conditions = []
-    values = []
-
-    if service:
-        conditions.append("service = ?")
-        values.append(service)
-
-    if date:
-        conditions.append("DATE(timestamp) = ?")
-        values.append(date)
-
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
-
-    query += " ORDER BY timestamp DESC LIMIT 100"
-
-    cursor.execute(query, values)
-    attacks = cursor.fetchall()
+    attacks = get_filtered_logs(service=service, start_date=date, end_date=date)
 
     cursor.execute("SELECT * FROM payloads")
     payloads = cursor.fetchall()
-    print("Payloads :")
-    for p in payloads:
-        print(p["ip"], p["port"], p["payload"])
 
     return render_template('index.html', attacks=attacks, payloads=payloads)
 
 @app.route('/stats')
 def stats():
+    ip = request.args.get('ip')
+    service = request.args.get('service')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
 
-    # Nombre d'attaques par jours
-    cursor.execute("SELECT DATE(timestamp) as day, COUNT(*) as total FROM attacks GROUP BY day ORDER BY total DESC LIMIT 7")
+    conditions = []
+    values = []
+
+    if ip:
+        conditions.append("ip = ?")
+        values.append(ip)
+    if service:
+        conditions.append("service = ?")
+        values.append(service)
+    if start_date:
+        conditions.append("DATE(timestamp) >= ?")
+        values.append(start_date)
+    if end_date:
+        conditions.append("DATE(timestamp) <= ?")
+        values.append(end_date)
+
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+    # Attaques par jour
+    cursor.execute(f"""
+        SELECT DATE(timestamp) as day, COUNT(*) as total
+        FROM attacks
+        {where_clause}
+        GROUP BY day
+        ORDER BY day DESC
+        LIMIT 7
+    """, values)
     attacks_per_day = cursor.fetchall()
 
-    # Top 5 IPs
-    cursor.execute("SELECT ip, COUNT(*) as total FROM attacks GROUP BY ip ORDER BY total DESC LIMIT 5")
+    # Top IPs
+    cursor.execute(f"""
+        SELECT ip, COUNT(*) as total
+        FROM attacks
+        {where_clause}
+        GROUP BY ip
+        ORDER BY total DESC
+        LIMIT 5
+    """, values)
     top_ips = cursor.fetchall()
 
-    # Top 5 ports
-    cursor.execute("SELECT port, COUNT(*) as total FROM attacks GROUP BY port ORDER BY total DESC LIMIT 5")
+    # Top ports
+    cursor.execute(f"""
+        SELECT port, COUNT(*) as total
+        FROM attacks
+        {where_clause}
+        GROUP BY port
+        ORDER BY total DESC
+        LIMIT 5
+    """, values)
     top_ports = cursor.fetchall()
 
-    return render_template('stats.html', attacks_per_day=attacks_per_day, top_ips=top_ips, top_ports=top_ports)
+    # Liste complète des attaques (pour affichage et filtrage dans le tableau)
+    cursor.execute(f"""
+        SELECT * FROM attacks
+        {where_clause}
+        ORDER BY timestamp DESC
+        LIMIT 100
+    """, values)
+    filtered_attacks = cursor.fetchall()
+
+    return render_template('stats.html',
+                           attacks_per_day=attacks_per_day,
+                           top_ips=top_ips,
+                           top_ports=top_ports,
+                           filtered_attacks=filtered_attacks,
+                           ip=ip,
+                           service=service,
+                           start_date=start_date,
+                           end_date=end_date)
+
+
+@app.route("/export")
+def export():
+    ip = request.args.get("ip")
+    service = request.args.get("service")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+    fmt = request.args.get("format", "csv")
+
+    entries = get_filtered_logs(ip, service, start_date, end_date)
+
+    if not entries:
+        return "Aucune donnée à exporter", 404
+
+    if fmt == "json":
+        response = app.response_class(
+            response=json.dumps([dict(row) for row in entries], indent=2),
+            mimetype="application/json"
+        )
+        response.headers["Content-Disposition"] = "attachment; filename=logs.json"
+        return response
+
+    # CSV export
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=entries[0].keys())
+    writer.writeheader()
+    writer.writerows([dict(row) for row in entries])
+    response = app.response_class(output.getvalue(), mimetype='text/csv')
+    response.headers["Content-Disposition"] = "attachment; filename=logs.csv"
+    return response
 
 
 if __name__ == '__main__':

@@ -10,6 +10,37 @@
     <div class="container mt-4">
         <h1 class="mb-4">📊 Statistiques Honeypot</h1>
 
+        <!-- Formulaire de filtres et d'export -->
+        <form method="get" action="/stats" class="row g-3 mb-4">
+            <div class="col-md-3">
+                <input type="text" name="ip" placeholder="Adresse IP" class="form-control" value="{{ ip or '' }}">
+            </div>
+            <div class="col-md-2">
+                <select name="service" class="form-select">
+                    <option value="">Tous les services</option>
+                    <option value="ssh" {% if service == 'ssh' %}selected{% endif %}>SSH</option>
+                    <option value="http" {% if service == 'http' %}selected{% endif %}>HTTP</option>
+                    <option value="ftp" {% if service == 'ftp' %}selected{% endif %}>FTP</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="date" name="start_date" class="form-control" value="{{ start_date or '' }}">
+            </div>
+            <div class="col-md-2">
+                <input type="date" name="end_date" class="form-control" value="{{ end_date or '' }}">
+            </div>
+            <div class="col-md-1 d-grid">
+                <button type="submit" class="btn btn-primary">Filtrer</button>
+            </div>
+            <div class="col-md-2 d-flex">
+                <select name="format" class="form-select me-2">
+                    <option value="csv">CSV</option>
+                    <option value="json">JSON</option>
+                </select>
+                <button formaction="/export" formmethod="get" class="btn btn-success">Exporter</button>
+            </div>
+        </form>
+
         <h3>📅 Attaques par jour</h3>
         <table class="table table-dark table-striped table-bordered">
             <thead>
@@ -63,6 +94,15 @@
                 {% endfor %}
             </tbody>
         </table>
+
+        <div>
+            <strong>Filtrer par service : </strong>
+            <a href="/stats">Tous</a> |
+            <a href="/stats?service=SSH">SSH</a> |
+            <a href="/stats?service=FTP">FTP</a> |
+            <a href="/stats?service=HTTP">HTTP</a>
+        </div>
+
 
         <a href="/" class="btn btn-outline-light mt-4">⬅️ Retour aux logs</a>
     </div>

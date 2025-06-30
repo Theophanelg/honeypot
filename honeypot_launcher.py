@@ -3,6 +3,7 @@ from services.ssh_server import ssh_honeypot
 from services.http_server import http_honeypot
 from services.ftp_server import ftp_honeypot
 
+
 def start_services():
     threading.Thread(target=ssh_honeypot, daemon=True).start()
     threading.Thread(target=http_honeypot, daemon=True).start()

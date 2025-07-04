@@ -59,24 +59,33 @@
             </tbody>
         </table>
 
-        <h3>🌐 Top 5 IPs</h3>
+        <h3>🌐 Top 5 IPs avec réputation</h3>
         <table class="table table-dark table-striped table-bordered">
             <thead>
                 <tr>
                     <th>IP</th>
-                    <th>Total</th>
+                    <th>Nombre d'attaques</th>
+                    <th>Score de réputation</th>
                 </tr>
             </thead>
             <tbody>
-                {% for ip, total in top_ips %}
+                {% for ip, total, score in top_ips %}
                 <tr>
                     <td>{{ ip }}</td>
                     <td>{{ total }}</td>
+                    <td>
+                        {% if score is not none %}
+                        <span style="color: {{ 'red' if score >= 50 else 'orange' if score >= 10 else 'green' }}"> 
+                            {{ score }}
+                        </span>
+                        {% else %}
+                        Inconnu
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-
         <h3>🔌 Top 5 Ports</h3>
         <table class="table table-dark table-striped table-bordered">
             <thead>

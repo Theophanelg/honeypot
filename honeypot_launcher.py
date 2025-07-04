@@ -5,7 +5,7 @@ from services.ftp_server import ftp_honeypot
 
 
 def start_services():
-    threading.Thread(target=ssh_honeypot, daemon=True).start()
+    threading.Thread(target=ssh_honeypot, kwargs={"port": 2222}, daemon=True).start()
     threading.Thread(target=http_honeypot, daemon=True).start()
     threading.Thread(target=ftp_honeypot, daemon=True).start()
 

@@ -25,8 +25,9 @@ def setup_logger():
 
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
+    if not logger.handlers:
+        logger.addHandler(console_handler)
+        logger.addHandler(file_handler)
 
     return logger
 
@@ -50,12 +51,10 @@ def log_attack(ip, port, service, data, method="GET"):
     logger.info(log_msg)
 
     try:
-        # Insertion dans la table attack
         cursor.execute("INSERT INTO attacks (ip, port, service, data, data_type) VALUES (?, ?, ?, ?, ?)",
                        (ip, port, service, data, data_type))
         conn.commit()
 
-        # HTTP : extraire User-Agent et payload
         if service == "HTTP":
             user_agent = extract_user_agent(data)
             if user_agent:
@@ -73,7 +72,7 @@ def log_attack(ip, port, service, data, method="GET"):
 
     # Vérifie la réputation de l’IP si pas encore faite
     try:
-        rep_conn = sqlite3.connect("honeypot.db")
+        rep_conn = rep_cursor = get_db()
         rep_cursor = rep_conn.cursor()
         rep_cursor.execute("SELECT 1 FROM ip_reputation WHERE ip = ?", (ip,))
         if not rep_cursor.fetchone():
@@ -84,7 +83,7 @@ def log_attack(ip, port, service, data, method="GET"):
 
     # Mise à jour de l’activité IP
     try:
-        ip_conn = sqlite3.connect("honeypot.db")
+        ip_conn = ip_cursor = get_db()
         ip_cursor = ip_conn.cursor()
 
         now = datetime.now()
@@ -110,8 +109,7 @@ def log_attack(ip, port, service, data, method="GET"):
         if count >= 50:
             logger.warning(f"{Fore.YELLOW}[!] IP {ip} trop active. Ajout à la blacklist.{Style.RESET_ALL}")
             os.system(f"sudo iptables -A INPUT -s {ip} -j DROP")
-            # Optionnel : ajouter à table `blacklist`
-            ip_cursor.execute("INSERT OR IGNORE INTO blacklist (ip, blocked_at) VALUES (?, ?)",
+            ip_cursor.execute("INSERT INTO blacklist (ip, blocked_at) VALUES (?, ?) ON CONFLICT(ip) DO UPDATE SET blocked_at = excluded.blocked_at",
                               (ip, now.isoformat()))
             ip_conn.commit()
 

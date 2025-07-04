@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, Response
 from utils.db import get_db, get_filtered_logs
 import csv
 import io
@@ -32,24 +32,24 @@ def stats():
     values = []
 
     if ip:
-        conditions.append("ip = ?")
+        conditions.append("a.ip = ?")
         values.append(ip)
     if service:
-        conditions.append("service = ?")
+        conditions.append("a.service = ?")
         values.append(service)
     if start_date:
-        conditions.append("DATE(timestamp) >= ?")
+        conditions.append("DATE(a.timestamp) >= ?")
         values.append(start_date)
     if end_date:
-        conditions.append("DATE(timestamp) <= ?")
+        conditions.append("DATE(a.timestamp) <= ?")
         values.append(end_date)
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
     # Attaques par jour
     cursor.execute(f"""
-        SELECT DATE(timestamp) as day, COUNT(*) as total
-        FROM attacks
+        SELECT DATE(a.timestamp) as day, COUNT(*) as total
+        FROM attacks a
         {where_clause}
         GROUP BY day
         ORDER BY day DESC
@@ -57,33 +57,40 @@ def stats():
     """, values)
     attacks_per_day = cursor.fetchall()
 
-    # Top IPs
+    # Top IPs avec score de réputation
     cursor.execute(f"""
-        SELECT ip, COUNT(*) as total
-        FROM attacks
+        SELECT a.ip, COUNT(*) as total, r.abuse_score
+        FROM attacks a
+        LEFT JOIN ip_reputation r ON a.ip = r.ip
         {where_clause}
-        GROUP BY ip
+        GROUP BY a.ip
         ORDER BY total DESC
         LIMIT 5
     """, values)
-    top_ips = cursor.fetchall()
+    raw_top_ips = cursor.fetchall()
+    top_ips = []
+    for row in raw_top_ips:
+        ip, total, score = row
+        if score is not None:
+            score = int(score)
+        top_ips.append((ip, total, score))
 
     # Top ports
     cursor.execute(f"""
-        SELECT port, COUNT(*) as total
-        FROM attacks
+        SELECT a.port, COUNT(*) as total
+        FROM attacks a
         {where_clause}
-        GROUP BY port
+        GROUP BY a.port
         ORDER BY total DESC
         LIMIT 5
     """, values)
     top_ports = cursor.fetchall()
 
-    # Liste complète des attaques (pour affichage et filtrage dans le tableau)
+    # Liste complète des attaques
     cursor.execute(f"""
-        SELECT * FROM attacks
+        SELECT * FROM attacks a
         {where_clause}
-        ORDER BY timestamp DESC
+        ORDER BY a.timestamp DESC
         LIMIT 100
     """, values)
     filtered_attacks = cursor.fetchall()
@@ -125,7 +132,7 @@ def export():
     writer = csv.DictWriter(output, fieldnames=entries[0].keys())
     writer.writeheader()
     writer.writerows([dict(row) for row in entries])
-    response = app.response_class(output.getvalue(), mimetype='text/csv')
+    response = Response(output.getvalue(), mimetype='text/csv')
     response.headers["Content-Disposition"] = "attachment; filename=logs.csv"
     return response
 

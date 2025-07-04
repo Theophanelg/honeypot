@@ -1,17 +1,19 @@
 import requests
 import sqlite3
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
 API_KEY = os.getenv("ABUSE_API_KEY")
 API_URL = "https://api.abuseipdb.com/api/v2/check"
 
-# Vérifie la réputation d'une IP via AbuseIPDB et stocke le résultat
+logger = logging.getLogger(__name__)
+
 def check_ip_reputation(ip):
     if not API_KEY:
-        print("[ERREUR] Clé API AbuseIPDB manquante.")
-        return
+        logger.error("Clé API AbuseIPDB manquante.")
+        return None
 
     try:
         response = requests.get(
@@ -27,8 +29,8 @@ def check_ip_reputation(ip):
         )
 
         if response.status_code != 200:
-            print(f"[ERREUR] API AbuseIPDB - {response.status_code}: {response.text}")
-            return
+            logger.error(f"API AbuseIPDB - {response.status_code}: {response.text}")
+            return None
 
         data = response.json()["data"]
 
@@ -37,7 +39,6 @@ def check_ip_reputation(ip):
         country = data.get("countryCode")
         isp = data.get("isp")
 
-        # Stocke dans la base
         conn = sqlite3.connect("honeypot.db", check_same_thread=False)
         cursor = conn.cursor()
 
@@ -48,7 +49,9 @@ def check_ip_reputation(ip):
         conn.commit()
         conn.close()
 
-        print(f"[INFO] Réputation stockée pour {ip} (score: {abuse_score})")
+        logger.info(f"Réputation stockée pour {ip} (score: {abuse_score})")
+        return abuse_score
 
     except Exception as e:
-        print(f"[ERREUR] Exception lors de la requête à AbuseIPDB: {e}")
+        logger.error(f"Exception lors de la requête à AbuseIPDB: {e}")
+        return None

@@ -2,6 +2,7 @@ import socket
 import threading
 import datetime
 import os
+import time
 from utils.logger import log_attack
 
 fake_fs = {
@@ -17,6 +18,8 @@ file_contents = {
 }
 
 def safe_path_join(base, target):
+    # Protection contre l’évasion du fake FS
+    target = os.path.normpath(target).lstrip("/")
     new_path = os.path.normpath(os.path.join(base, target))
     if not new_path.startswith("/"):
         new_path = "/" + new_path
@@ -26,13 +29,15 @@ def safe_path_join(base, target):
     return None
 
 def handle_client(client_socket, address):
-    ip = address[0]
-    port = address[1]
+    ip, port = address
     print(f"[+] Connexion SSH simulée de {ip}")
     os.makedirs("logs", exist_ok=True)
     log_file = f"logs/ssh_{ip}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
     try:
+        # Envoie une vraie bannière SSH pour tromper les scanners
+        client_socket.sendall(b"SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.3\r\n")
+        time.sleep(0.2)
         client_socket.sendall(b"login: ")
         client_socket.recv(1024)
         client_socket.sendall(b"Password: ")
@@ -44,14 +49,21 @@ def handle_client(client_socket, address):
         while True:
             prompt = f"user@honeypot:{current_dir}$ ".encode()
             client_socket.sendall(prompt)
-            cmd = client_socket.recv(1024).decode(errors="ignore").strip()
+            try:
+                cmd = client_socket.recv(1024).decode(errors="ignore").strip()
+                if not cmd:
+                    break  # déconnexion
+            except (ConnectionResetError, BrokenPipeError):
+                log_attack(ip, port, "SSH", "Déconnexion brutale")
+                break
 
+            # Log local et centralisé
             with open(log_file, "a") as f:
                 f.write(f"[{datetime.datetime.now()}] {ip} > {cmd}\n")
-
-            log_attack(ip, 22, "SSH", cmd)  
+            log_attack(ip, port, "SSH", cmd)
 
             if cmd in ("exit", "logout"):
+                client_socket.sendall(b"logout\nConnection closed.\n")
                 break
 
             elif cmd.startswith("cd "):
@@ -77,26 +89,42 @@ def handle_client(client_socket, address):
             elif cmd == "pwd":
                 client_socket.sendall((current_dir + "\n").encode())
 
+            elif cmd == "":
+                continue
+
             else:
                 client_socket.sendall(b"command not found\n")
+            time.sleep(0.15)  # délai pour chaque commande, pour le réalisme
 
     except Exception as e:
         print(f"[!] Erreur avec {ip} : {e}")
+        log_attack(ip, port, "SSH", f"Erreur : {e}")
     finally:
         client_socket.close()
         print(f"[-] Déconnexion de {ip}")
+        log_attack(ip, port, "SSH", "Déconnexion")
 
-
-def ssh_honeypot(port=22):
+def ssh_honeypot(port=2222):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind(("0.0.0.0", port))
-    server.listen(5)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        server.bind(("0.0.0.0", port))
+    except PermissionError:
+        print(f"Permission refusée pour ouvrir le port {port}. Utilise un port >1024 ou lance avec sudo.")
+        return
+    server.listen(10)
     print(f"Honeypot SSH en écoute sur le port {port}...")
 
-    while True:
-        client_sock, addr = server.accept()
-        thread = threading.Thread(target=handle_client, args=(client_sock, addr))
-        thread.start()
+    try:
+        while True:
+            client_sock, addr = server.accept()
+            # Thread daemon pour faciliter l'arrêt global
+            thread = threading.Thread(target=handle_client, args=(client_sock, addr), daemon=True)
+            thread.start()
+    except KeyboardInterrupt:
+        print("Arrêt du honeypot SSH.")
+    finally:
+        server.close()
 
 if __name__ == "__main__":
     ssh_honeypot(port=2222)

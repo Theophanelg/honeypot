@@ -1,21 +1,40 @@
-from flask import Flask, render_template, request, Response
-from utils.db import get_db, get_filtered_logs
+from flask import Flask, render_template, request, Response, g
+from utils.db import get_filtered_logs
 import csv
 import io
 import json
+import sqlite3
 
 app = Flask(__name__)
 
-# Connexion partagée
-conn, cursor = get_db()
+DB_PATH = "honeypot.db"
+
+def get_db():
+    """Ouvre une connexion par requête Flask (bonne pratique)."""
+    if "db" not in g:
+        g.db = sqlite3.connect(DB_PATH)
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+@app.teardown_appcontext
+def close_db(exception):
+    """Ferme proprement la connexion en fin de requête."""
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
 
 @app.route('/')
 def index():
+    """
+    Accueil : affiche la liste des attaques filtrées.
+    """
     service = request.args.get('service')
     date = request.args.get('date')
 
     attacks = get_filtered_logs(service=service, start_date=date, end_date=date)
 
+    db = get_db()
+    cursor = db.cursor()
     cursor.execute("SELECT * FROM payloads")
     payloads = cursor.fetchall()
 
@@ -23,6 +42,9 @@ def index():
 
 @app.route('/stats')
 def stats():
+    """
+    Affiche les statistiques d'attaque.
+    """
     ip = request.args.get('ip')
     service = request.args.get('service')
     start_date = request.args.get('start_date')
@@ -45,6 +67,9 @@ def stats():
         values.append(end_date)
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+    db = get_db()
+    cursor = db.cursor()
 
     # Attaques par jour
     cursor.execute(f"""
@@ -71,8 +96,7 @@ def stats():
     top_ips = []
     for row in raw_top_ips:
         ip, total, score = row
-        if score is not None:
-            score = int(score)
+        score = int(score) if score is not None else None
         top_ips.append((ip, total, score))
 
     # Top ports
@@ -105,9 +129,11 @@ def stats():
                            start_date=start_date,
                            end_date=end_date)
 
-
 @app.route("/export")
 def export():
+    """
+    Export des logs filtrés au format CSV ou JSON.
+    """
     ip = request.args.get("ip")
     service = request.args.get("service")
     start_date = request.args.get("start_date")
@@ -136,6 +162,6 @@ def export():
     response.headers["Content-Disposition"] = "attachment; filename=logs.csv"
     return response
 
-
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Désactive le debug en production !
+    app.run(debug=False, host='0.0.0.0', port=5000)

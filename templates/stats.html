@@ -8,6 +8,11 @@
 </head>
 <body class="bg-dark text-light">
     <div class="container mt-4">
+        <div class="alert alert-warning text-dark" role="alert">
+            ⚠️ <strong>Attention</strong> : Ce tableau affiche des données d’attaque collectées sur un honeypot à des fins pédagogiques.
+            <a href="https://fr.wikipedia.org/wiki/Honeypot_(informatique)" target="_blank" class="alert-link">Qu’est-ce qu’un honeypot ?</a>
+        </div>
+
         <h1 class="mb-4">📊 Statistiques Honeypot</h1>
 
         <!-- Formulaire de filtres et d'export -->
@@ -18,9 +23,9 @@
             <div class="col-md-2">
                 <select name="service" class="form-select">
                     <option value="">Tous les services</option>
-                    <option value="ssh" {% if service == 'ssh' %}selected{% endif %}>SSH</option>
-                    <option value="http" {% if service == 'http' %}selected{% endif %}>HTTP</option>
-                    <option value="ftp" {% if service == 'ftp' %}selected{% endif %}>FTP</option>
+                    <option value="SSH" {% if service == 'SSH' %}selected{% endif %}>SSH</option>
+                    <option value="HTTP" {% if service == 'HTTP' %}selected{% endif %}>HTTP</option>
+                    <option value="FTP" {% if service == 'FTP' %}selected{% endif %}>FTP</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -45,8 +50,8 @@
         <table class="table table-dark table-striped table-bordered">
             <thead>
                 <tr>
-                    <th>Date</th>
-                    <th>Total</th>
+                    <th scope="col">Date</th>
+                    <th scope="col">Total</th>
                 </tr>
             </thead>
             <tbody>
@@ -63,9 +68,9 @@
         <table class="table table-dark table-striped table-bordered">
             <thead>
                 <tr>
-                    <th>IP</th>
-                    <th>Nombre d'attaques</th>
-                    <th>Score de réputation</th>
+                    <th scope="col">IP</th>
+                    <th scope="col">Nombre d'attaques</th>
+                    <th scope="col">Score de réputation</th>
                 </tr>
             </thead>
             <tbody>
@@ -75,7 +80,7 @@
                     <td>{{ total }}</td>
                     <td>
                         {% if score is not none %}
-                        <span style="color: {{ 'red' if score >= 50 else 'orange' if score >= 10 else 'green' }}"> 
+                        <span class="{% if score >= 50 %}score-high{% elif score >= 10 %}score-mid{% else %}score-low{% endif %}">
                             {{ score }}
                         </span>
                         {% else %}
@@ -90,8 +95,8 @@
         <table class="table table-dark table-striped table-bordered">
             <thead>
                 <tr>
-                    <th>Port</th>
-                    <th>Total</th>
+                    <th scope="col">Port</th>
+                    <th scope="col">Total</th>
                 </tr>
             </thead>
             <tbody>
@@ -111,7 +116,6 @@
             <a href="/stats?service=FTP">FTP</a> |
             <a href="/stats?service=HTTP">HTTP</a>
         </div>
-
 
         <a href="/" class="btn btn-outline-light mt-4">⬅️ Retour aux logs</a>
     </div>

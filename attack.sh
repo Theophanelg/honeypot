@@ -1,17 +1,26 @@
 #!/bin/bash
+set -e
 
-HONEYPOT_HOST="192.168.1.100"
-HONEYPOT_HTTP_PORT=80
-HONEYPOT_SSH_PORT=22
-HONEYPOT_FTP_PORT=21
+# Vérification des dépendances
+for cmd in curl ftp ssh sshpass; do
+    if ! command -v $cmd &> /dev/null; then
+        echo "Erreur : $cmd n'est pas installé. Installe-le avec 'sudo apt install $cmd'"
+        exit 1
+    fi
+done
 
-IPS=("192.168.1.100" "10.0.0.55" "203.0.113.77" "198.51.100.42")
+HONEYPOT_HOST="192.168.79.128"
+HONEYPOT_HTTP_PORT=8080    # adapte à ton port réel !
+HONEYPOT_SSH_PORT=2222
+HONEYPOT_FTP_PORT=2121
+
+IPS=("192.168.1.100" "10.0.0.55" "203.0.113.77" "198.51.100.42" "192.168.79.128")
 
 echo "==============================="
 echo "=== SIMULATION D'ATTAQUES ==="
 echo "==============================="
 
-echo -e "\n=== Attaques HTTP (Port 80) ==="
+echo -e "\n=== Attaques HTTP (Port $HONEYPOT_HTTP_PORT) ==="
 for ip in "${IPS[@]}"; do
     echo "--- HTTP GET (Credentials in URL) from $ip ---"
     curl -s -A "EvilScanner/9.9" -H "X-Forwarded-For: $ip" "http://$HONEYPOT_HOST:$HONEYPOT_HTTP_PORT/?user=admin&pass=123"
@@ -35,22 +44,14 @@ for ip in "${IPS[@]}"; do
     curl -s -I -A "ReconBot/0.5" -H "X-Forwarded-For: $ip" "http://$HONEYPOT_HOST:$HONEYPOT_HTTP_PORT/"
 done
 
-echo -e "\n=== Attaques FTP (Port 21) ==="
-
-echo "--- FTP (Anonymous Login Attempt) ---"
-echo "open $HONEYPOT_HOST $HONEYPOT_FTP_PORT
-user anonymous hackme
-quit" | ftp -n > /dev/null 2>&1
-
-echo "--- FTP (Known Credential Login) ---"
-echo "open $HONEYPOT_HOST $HONEYPOT_FTP_PORT
-user admin admin
-quit" | ftp -n > /dev/null 2>&1
-
-echo "--- FTP (Another Known Credential Login) ---"
-echo "open $HONEYPOT_HOST $HONEYPOT_FTP_PORT
-user root toor
-quit" | ftp -n > /dev/null 2>&1
+echo -e "\n=== Attaques FTP (Port $HONEYPOT_FTP_PORT) ==="
+# FTP : vérifier que le service écoute bien sur le port choisi
+for cred in "anonymous hackme" "admin admin" "root toor"; do
+    user=$(echo $cred | cut -d' ' -f1)
+    pass=$(echo $cred | cut -d' ' -f2)
+    echo "--- FTP login attempt: $user/$pass ---"
+    echo -e "open $HONEYPOT_HOST $HONEYPOT_FTP_PORT\nuser $user $pass\nquit" | ftp -n > /dev/null 2>&1
+done
 
 echo "--- FTP (Post-Login Commands Simulation) ---"
 (
@@ -69,19 +70,16 @@ sleep 1
 echo "quit"
 ) | ftp -n > /dev/null 2>&1
 
-echo -e "\n=== Attaques SSH (Port 22) ==="
-
+echo -e "\n=== Attaques SSH (Port $HONEYPOT_SSH_PORT) ==="
 echo "--- SSH (Initial Command Execution Attempt) ---"
-ssh -p $HONEYPOT_SSH_PORT fakeuser@$HONEYPOT_HOST -o StrictHostKeyChecking=no -o ConnectTimeout=5 "whoami" > /dev/null 2>&1
+ssh -p $HONEYPOT_SSH_PORT fakeuser@$HONEYPOT_HOST -o StrictHostKeyChecking=no -o ConnectTimeout=5 "whoami" > /dev/null 2>&1 || true
 
-echo "--- SSH (Common Credential - root/root) ---"
-sshpass -p "root" ssh -p $HONEYPOT_SSH_PORT root@$HONEYPOT_HOST -o StrictHostKeyChecking=no -o ConnectTimeout=5 "ls -la /" > /dev/null 2>&1 || true
-
-echo "--- SSH (Common Credential - admin/password) ---"
-sshpass -p "password" ssh -p $HONEYPOT_SSH_PORT admin@$HONEYPOT_HOST -o StrictHostKeyChecking=no -o ConnectTimeout=5 "cat /etc/shadow" > /dev/null 2>&1 || true
-
-echo "--- SSH (Common Credential - ubuntu/ubuntu) ---"
-sshpass -p "ubuntu" ssh -p $HONEYPOT_SSH_PORT ubuntu@$HONEYPOT_HOST -o StrictHostKeyChecking=no -o ConnectTimeout=5 "uname -a" > /dev/null 2>&1 || true
+for creds in "root root" "admin password" "ubuntu ubuntu"; do
+    user=$(echo $creds | cut -d' ' -f1)
+    pass=$(echo $creds | cut -d' ' -f2)
+    echo "--- SSH (Common Credential - $user/$pass) ---"
+    sshpass -p "$pass" ssh -p $HONEYPOT_SSH_PORT $user@$HONEYPOT_HOST -o StrictHostKeyChecking=no -o ConnectTimeout=5 "ls -la /" > /dev/null 2>&1 || true
+done
 
 echo "--- SSH (Simulated Interactive Session) ---"
 ssh -p $HONEYPOT_SSH_PORT attacker@$HONEYPOT_HOST -o StrictHostKeyChecking=no -o ConnectTimeout=5 "cd /etc; ls; cat passwd" > /dev/null 2>&1 || true

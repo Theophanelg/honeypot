@@ -1,7 +1,3 @@
-Voici une version **améliorée et complète de ton README**, incluant toutes les recommandations et points vus ensemble, **parfaite pour un projet cybersécurité en contexte étudiant** :
-
----
-
 # Honeypot
 
 ## Description

@@ -1,37 +1,47 @@
 import socket
 import threading
 import time
-from utils.logger import log_attack
+from utils.logger import log_attack # Utilise la fonction log_attack
+
 # Ce module simule un serveur HTTP basique pour servir de honeypot.
-# Il répond à toutes les requêtes HTTP avec une page HTML simple
-# et enregistre les requêtes complètes des clients.
+# Il répond à toutes les requêtes HTTP avec une page d'accueil générique
+# et enregistre les requêtes complètes des clients pour l'analyse.
 
 HTTP_PORT = 8080 # Port sur lequel le honeypot HTTP écoute.
 
-RESPONSE = b"""HTTP/1.1 200 OK\r
-Server: Apache/2.4.41 (Ubuntu)\r
-Content-Type: text/html\r
-\r
-<html>
-<head><title>It works!</title></head>
-<body><h1>Welcome to Fake HTTP Honeypot</h1></body>
+HTML_BODY = """<html>
+<head><title>Bienvenue sur notre site !</title></head>
+<body>
+    <h1>Ceci est la page d'accueil par défaut de notre serveur web.</h1>
+    <p>Si vous voyez ceci, le site fonctionne correctement.</p>
+</body>
 </html>
 """
 
 def handle_client(client_socket: socket.socket, addr: tuple):
     """
     Gère une connexion client HTTP entrante, journalise la requête complète
-    et envoie une réponse statique.
+    et envoie une réponse statique générique.
     """
     try:
         data = client_socket.recv(4096).decode(errors='ignore') # Récupère la requête complète
-        if data:
-            request_line = data.splitlines()[0] if data else "EMPTY"
-            # log_attack avec la requête complète comme 'data' et la réponse comme 'output_content'
-            log_attack(addr[0], addr[1], "HTTP", data, method="GET", output_content=RESPONSE.decode(errors='ignore').strip())
         
+        # Encodage du corps HTML en bytes pour calculer la taille et l'envoyer
+        encoded_html_body = HTML_BODY.encode('utf-8')
+        content_length = len(encoded_html_body)
+
+        # Construction de la réponse HTTP complète avec l'en-tête Content-Length correct
+        response_header = f"HTTP/1.1 200 OK\r\nServer: Apache/2.4.41 (Ubuntu)\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {content_length}\r\n\r\n"
+        full_response_bytes = response_header.encode('utf-8') + encoded_html_body
+
+        # Log de la requête et de la réponse
+        if data:
+            log_attack(addr[0], addr[1], "HTTP", data, method="GET", output_content=full_response_bytes.decode('utf-8', errors='ignore').strip())
+        else:
+            log_attack(addr[0], addr[1], "HTTP", "Requête vide reçue", method="GET", output_content=full_response_bytes.decode('utf-8', errors='ignore').strip())
+
         time.sleep(0.3)
-        client_socket.sendall(RESPONSE)
+        client_socket.sendall(full_response_bytes) # Envoie la réponse complète (en bytes)
     except Exception as e:
         log_attack(addr[0], addr[1], "HTTP", f"Erreur: {e}", output_content=str(e).strip())
     finally:

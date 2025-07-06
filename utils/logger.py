@@ -1,16 +1,23 @@
 import logging
 from utils.analyzer import analyze_data
 from utils.db import get_db
+from utils.ip_reputation import check_ip_reputation
 from colorama import Fore, Style
 import re
 import json
 from urllib.parse import urlparse, parse_qs
-from utils.ip_reputation import check_ip_reputation
 import sqlite3
 from datetime import datetime, timedelta
 import os
+import subprocess
+from typing import Union, Optional
+
+# Ce module gère la journalisation des attaques du honeypot.
+# Il écrit les logs en console et dans un fichier, gère les insertions en base de données,
+# la vérification de la réputation IP et le blacklisting automatique.
 
 def setup_logger():
+    """Configure et retourne un logger pour les événements du honeypot."""
     log_formatter = logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
     console_handler = logging.StreamHandler()
@@ -22,7 +29,6 @@ def setup_logger():
     logger = logging.getLogger("honeypot")
     logger.setLevel(logging.INFO)
 
-    # Pour éviter les handlers dupliqués si le script est rechargé
     if not logger.handlers:
         logger.addHandler(console_handler)
         logger.addHandler(file_handler)
@@ -31,25 +37,44 @@ def setup_logger():
 
 logger = setup_logger()
 
-def log_attack(ip, port, service, data, method="GET"):
+def extract_user_agent(data: str) -> Optional[str]:
+    """Extrait la chaîne User-Agent des données de requête HTTP."""
+    match = re.search(r'User-Agent:\s*(.+)', data, re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    return None
+
+def extract_http_payload(request_data: str, method: str) -> Optional[str]:
+    """Extrait la charge utile des données de requête HTTP (pour GET: paramètres URL, pour POST: corps de la requête)."""
+    payload = None
+    if method == 'GET':
+        match = re.search(r'GET\s+(\S+)', request_data)
+        if match:
+            url_parsed = urlparse(match.group(1))
+            payload_dict = parse_qs(url_parsed.query)
+            if payload_dict:
+                payload = json.dumps(payload_dict)
+    elif method == 'POST':
+        payload = json.dumps(request_data)
+    return payload
+
+def log_attack(ip: str, port: int, service: str, data: Union[str, bytes], method: str = "GET", output_content: Optional[str] = None):
+    """
+    Enregistre un événement d'attaque dans la console, un fichier et la base de données.
+    Effectue l'analyse des données, la vérification de la réputation IP et le blacklisting.
+    """
     data_type = analyze_data(data)
 
-    # Couleur console
-    if service == "SSH":
-        color = Fore.RED
-    elif service == "HTTP":
-        color = Fore.BLUE
-    elif service == "FTP":
-        color = Fore.MAGENTA
-    else:
-        color = Fore.WHITE
+    color = Fore.RED if service == "SSH" else \
+            Fore.BLUE if service == "HTTP" else \
+            Fore.MAGENTA if service == "FTP" else \
+            Fore.WHITE
 
-    # Affichage console coloré, log fichier en brut
     log_console = f"{color}{service} attack from {ip}:{port} -> {data} (Type: {data_type}){Style.RESET_ALL}"
     log_file = f"{service} attack from {ip}:{port} -> {data} (Type: {data_type})"
 
     logger.info(log_console)
-    # Ajoute explicitement dans le fichier sans colorama
+
     for handler in logger.handlers:
         if isinstance(handler, logging.FileHandler):
             handler.emit(logging.LogRecord(
@@ -57,96 +82,76 @@ def log_attack(ip, port, service, data, method="GET"):
                 lineno=0, msg=log_file, args=(), exc_info=None
             ))
 
-    # Utilisation context manager pour chaque accès BDD
     try:
-        with sqlite3.connect("honeypot.db") as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO attacks (ip, port, service, data, data_type) VALUES (?, ?, ?, ?, ?)",
-                           (ip, port, service, data, data_type))
+        conn, cursor = get_db()
+        cursor.execute("INSERT INTO attacks (ip, port, service, data, data_type) VALUES (?, ?, ?, ?, ?)",
+                       (ip, port, service, data, data_type))
 
-            if service == "HTTP":
-                user_agent = extract_user_agent(data)
-                if user_agent:
-                    cursor.execute("INSERT INTO user_agents (ip, port, user_agent) VALUES (?, ?, ?)",
-                                   (ip, port, user_agent))
+        if service == "HTTP":
+            user_agent = extract_user_agent(data)
+            if user_agent:
+                cursor.execute("INSERT INTO user_agents (ip, port, user_agent) VALUES (?, ?, ?)",
+                               (ip, port, user_agent))
 
-                payload = extract_payload(data, method)
-                if payload:
-                    cursor.execute("INSERT INTO payloads (ip, port, service, payload) VALUES (?, ?, ?, ?)",
-                                   (ip, port, service, payload))
-            conn.commit()
+            payload = extract_http_payload(data, method)
+            if payload:
+                cursor.execute("INSERT INTO payloads (ip, port, service, payload) VALUES (?, ?, ?, ?)",
+                               (ip, port, service, payload))
+        elif service == "SSH":
+            payload_to_store = output_content if output_content is not None else data
+            cursor.execute("INSERT INTO payloads (ip, port, service, payload) VALUES (?, ?, ?, ?)",
+                           (ip, port, service, payload_to_store))
+        conn.commit()
+        conn.close()
     except sqlite3.Error as e:
         logger.error(f"Erreur insertion dans la BDD: {e}")
 
-    # Vérifie la réputation de l’IP si pas déjà présente
     try:
-        with sqlite3.connect("honeypot.db") as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1 FROM ip_reputation WHERE ip = ?", (ip,))
-            if not cursor.fetchone():
-                check_ip_reputation(ip)
+        conn, cursor = get_db()
+        cursor.execute("SELECT 1 FROM ip_reputation WHERE ip = ?", (ip,))
+        if not cursor.fetchone():
+            check_ip_reputation(ip)
+        conn.close()
     except Exception as e:
         logger.error(f"Erreur lors de la vérification de réputation IP : {e}")
 
-    # Suivi activité IP
     try:
-        with sqlite3.connect("honeypot.db") as conn:
-            cursor = conn.cursor()
-            now = datetime.now()
-            cursor.execute("SELECT count, last_seen FROM ip_activity WHERE ip = ?", (ip,))
-            row = cursor.fetchone()
+        conn, cursor = get_db()
+        now = datetime.now()
+        cursor.execute("SELECT count, last_seen FROM ip_activity WHERE ip = ?", (ip,))
+        row = cursor.fetchone()
 
-            if row:
-                count, last_seen = row
-                try:
-                    last_seen = datetime.fromisoformat(last_seen)
-                except Exception:
-                    last_seen = now - timedelta(hours=1)
-                if now - last_seen < timedelta(minutes=5):
-                    count += 1
-                else:
-                    count = 1
+        count = 1
+        if row:
+            prev_count, last_seen_str = row
+            try:
+                last_seen = datetime.fromisoformat(last_seen_str)
+            except ValueError:
+                last_seen = now - timedelta(hours=1)
+            
+            if now - last_seen < timedelta(minutes=5):
+                count = prev_count + 1
             else:
                 count = 1
 
+        cursor.execute(
+            "REPLACE INTO ip_activity (ip, count, last_seen) VALUES (?, ?, ?)",
+            (ip, count, now.isoformat())
+        )
+        conn.commit()
+
+        if count >= 50:
+            logger.warning(f"[!] IP {ip} trop active. Ajout à la blacklist.")
+            if os.geteuid() == 0:
+                subprocess.run(["iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"], check=True)
+                logger.warning(f"IP {ip} bloquée via iptables.")
+            else:
+                logger.warning(f"(Non-root) Simulation de blocage iptables pour {ip}. Lancez en root pour appliquer.")
+
             cursor.execute(
-                "REPLACE INTO ip_activity (ip, count, last_seen) VALUES (?, ?, ?)",
-                (ip, count, now.isoformat())
-            )
+                "INSERT INTO blacklist (ip, blocked_at) VALUES (?, ?) ON CONFLICT(ip) DO UPDATE SET blocked_at = excluded.blocked_at",
+                (ip, now.isoformat()))
             conn.commit()
-
-            if count >= 50:
-                logger.warning(f"[!] IP {ip} trop active. Ajout à la blacklist.")
-                # Vérification iptables seulement si root, log au lieu d'exécuter si non root
-                if os.geteuid() == 0:
-                    os.system(f"iptables -A INPUT -s {ip} -j DROP")
-                    logger.warning(f"IP {ip} bloquée via iptables.")
-                else:
-                    logger.warning(f"(Non root) Simulation de blocage iptables pour {ip}")
-
-                cursor.execute(
-                    "INSERT INTO blacklist (ip, blocked_at) VALUES (?, ?) ON CONFLICT(ip) DO UPDATE SET blocked_at = excluded.blocked_at",
-                    (ip, now.isoformat()))
-                conn.commit()
+        conn.close()
     except Exception as e:
         logger.error(f"Erreur suivi d’activité IP : {e}")
-
-def extract_user_agent(data):
-    match = re.search(r'User-Agent:\s*(.+)', data, re.IGNORECASE)
-    if match:
-        return match.group(1).strip()
-    return None
-
-def extract_payload(request_data, method):
-    payload = ""
-    if method == 'GET':
-        match = re.search(r'GET\s+(\S+)', request_data)
-        if match:
-            url = match.group(1)
-            parsed_url = urlparse(url)
-            payload_dict = parse_qs(parsed_url.query)
-            payload = json.dumps(payload_dict) if payload_dict else None
-    elif method == 'POST':
-        # Ici, tu peux améliorer l'extraction du vrai body POST
-        payload = json.dumps(request_data)
-    return payload

@@ -5,7 +5,7 @@ import logging
 from dotenv import load_dotenv
 
 load_dotenv()
-API_KEY = os.getenv("ABUSEIPDB_API_KEY")  # Harmonisé
+API_KEY = os.getenv("ABUSEIPDB_API_KEY")
 API_URL = "https://api.abuseipdb.com/api/v2/check"
 DB_PATH = "honeypot.db"
 
@@ -27,7 +27,7 @@ def check_ip_reputation(ip):
                 "ipAddress": ip,
                 "maxAgeInDays": 30
             },
-            timeout=10  # Timeout ajouté
+            timeout=10
         )
 
         if response.status_code != 200:
@@ -49,7 +49,6 @@ def check_ip_reputation(ip):
         country = data.get("countryCode")
         isp = data.get("isp")
 
-        # Context manager pour la base
         try:
             with sqlite3.connect(DB_PATH) as conn:
                 cursor = conn.cursor()
@@ -72,7 +71,6 @@ def check_ip_reputation(ip):
         logger.error(f"Exception lors de la requête à AbuseIPDB: {e}")
         return None
 
-# Si tu veux tester ce module directement
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     ip = "8.8.8.8"

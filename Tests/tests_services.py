@@ -3,7 +3,7 @@ import time
 import sqlite3
 import os
 
-HONEY_SSH_PORT = 2222  # Doit correspondre à ton honeypot
+HONEY_SSH_PORT = 2222
 
 def wait_for_port(port, timeout=5):
     """Attend que le port soit disponible."""

@@ -6,8 +6,27 @@
     <title>🛡️🍯 Logs du Honeypot 🍯🛡️</title>
     <meta http-equiv="refresh" content="10">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .floating-button-bottom, .floating-button-top {
+            position: fixed;
+            right: 20px;
+            z-index: 1000;
+        }       
+        .floating-button-bottom {
+            bottom: 20px;
+        }
+        .floating-button-top {
+            top: 20px;
+            display: none;
+        }
+        .score-high { color: red; font-weight: bold; }
+        .score-mid { color: orange; }
+        .score-low { color: green; }
+    </style>
 </head>
 <body class="bg-dark text-light">
+    <a id="top" style="position: absolute; top: 0;"></a>
+
     <div class="container mt-5">
 
         <div class="alert alert-warning text-dark" role="alert">
@@ -60,10 +79,11 @@
                         <td>{{ attack.data }}</td>
                         <td>{{ attack.data_type }}</td>
                         <td>
-                        {% if attack.service == "HTTP" %}
-                            {% for payload in payloads %}
-                                {% if payload.ip == attack.ip and payload.port == attack.port %}
-                                    <div>{{ payload.payload | e }}</div>
+                        {# Affiche le payload si le service est HTTP OU SSH #}
+                        {% if attack.service == "HTTP" or attack.service == "SSH" %}
+                            {% for payload_item in payloads %}
+                                {% if payload_item.ip == attack.ip and payload_item.port == attack.port and payload_item.service == attack.service %}
+                                    <div>{{ payload_item.payload | e }}</div>
                                 {% endif %}
                             {% endfor %}
                         {% endif %}
@@ -84,5 +104,15 @@
             <span class="ms-2">Voir l’analyse détaillée des attaques (top IPs, ports, courbes…)</span>
         </p>
     </div>
+
+    <a href="#bottom" class="btn btn-info floating-button-bottom">Aller en bas 👇</a>
+
+    <div id="bottom" class="container mt-5 py-3 text-center text-muted">
+        <p>Honeypot Logs &copy; 2025</p>
+        <p>Développé pour la sécurité</p>
+        <a href="#top" class="btn btn-outline-secondary btn-sm mt-2">Retour en haut 👆</a>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

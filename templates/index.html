@@ -11,7 +11,7 @@
             position: fixed;
             right: 20px;
             z-index: 1000;
-        }       
+        }
         .floating-button-bottom {
             bottom: 20px;
         }
@@ -79,14 +79,11 @@
                         <td>{{ attack.data }}</td>
                         <td>{{ attack.data_type }}</td>
                         <td>
-                        {# Affiche le payload si le service est HTTP OU SSH #}
-                        {% if attack.service == "HTTP" or attack.service == "SSH" %}
-                            {% for payload_item in payloads %}
-                                {% if payload_item.ip == attack.ip and payload_item.port == attack.port and payload_item.service == attack.service %}
-                                    <div>{{ payload_item.payload | e }}</div>
-                                {% endif %}
-                            {% endfor %}
-                        {% endif %}
+                        {% for payload_item in payloads %}
+                            {% if payload_item.attack_id == attack.id %}
+                                <div>{{ payload_item.payload | e }}</div>
+                            {% endif %}
+                        {% endfor %}
                         </td>
                     </tr>
                     {% endfor %}

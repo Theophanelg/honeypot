@@ -1,6 +1,6 @@
 import logging
 from utils.analyzer import analyze_data
-from utils.db import get_db
+from utils.db import get_db, insert_payload
 from utils.ip_reputation import check_ip_reputation
 from colorama import Fore, Style
 import re
@@ -11,10 +11,6 @@ from datetime import datetime, timedelta
 import os
 import subprocess
 from typing import Union, Optional
-
-# Ce module gère la journalisation des attaques du honeypot.
-# Il écrit les logs en console et dans un fichier, gère les insertions en base de données,
-# la vérification de la réputation IP et le blacklisting automatique.
 
 def setup_logger():
     """Configure et retourne un logger pour les événements du honeypot."""
@@ -82,29 +78,39 @@ def log_attack(ip: str, port: int, service: str, data: Union[str, bytes], method
                 lineno=0, msg=log_file, args=(), exc_info=None
             ))
 
+    attack_id = None
     try:
         conn, cursor = get_db()
         cursor.execute("INSERT INTO attacks (ip, port, service, data, data_type) VALUES (?, ?, ?, ?, ?)",
                        (ip, port, service, data, data_type))
-
-        if service == "HTTP":
-            user_agent = extract_user_agent(data)
-            if user_agent:
-                cursor.execute("INSERT INTO user_agents (ip, port, user_agent) VALUES (?, ?, ?)",
-                               (ip, port, user_agent))
-
-            payload = extract_http_payload(data, method)
-            if payload:
-                cursor.execute("INSERT INTO payloads (ip, port, service, payload) VALUES (?, ?, ?, ?)",
-                               (ip, port, service, payload))
-        elif service == "SSH":
-            payload_to_store = output_content if output_content is not None else data
-            cursor.execute("INSERT INTO payloads (ip, port, service, payload) VALUES (?, ?, ?, ?)",
-                           (ip, port, service, payload_to_store))
+        attack_id = cursor.lastrowid
         conn.commit()
         conn.close()
     except sqlite3.Error as e:
-        logger.error(f"Erreur insertion dans la BDD: {e}")
+        logger.error(f"Erreur insertion dans la table 'attacks': {e}")
+
+    # Insertion du payload, utilise insert_payload si l'attaque a été enregistrée avec succès
+    if attack_id is not None:
+        try:
+            if service == "HTTP":
+                user_agent = extract_user_agent(data)
+                if user_agent:
+                    # insert_user_agent pourrait être une nouvelle fonction dans utils.db
+                    conn_ua, cursor_ua = get_db()
+                    cursor_ua.execute("INSERT INTO user_agents (ip, port, user_agent) VALUES (?, ?, ?)",
+                                       (ip, port, user_agent))
+                    conn_ua.commit()
+                    conn_ua.close()
+
+                payload = extract_http_payload(data, method)
+                if payload:
+                    insert_payload(attack_id, ip, port, service, payload) # Utilise la nouvelle fonction
+            elif service == "SSH":
+                payload_to_store = output_content if output_content is not None else data
+                insert_payload(attack_id, ip, port, service, payload_to_store) # Utilise la nouvelle fonction
+            # Aucune action de BDD ici pour FTP car le payload est la commande, déjà loguée
+        except sqlite3.Error as e:
+            logger.error(f"Erreur insertion dans la table 'payloads' ou 'user_agents': {e}") # Message plus spécifique
 
     try:
         conn, cursor = get_db()

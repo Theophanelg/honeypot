@@ -89,13 +89,11 @@ def log_attack(ip: str, port: int, service: str, data: Union[str, bytes], method
     except sqlite3.Error as e:
         logger.error(f"Erreur insertion dans la table 'attacks': {e}")
 
-    # Insertion du payload, utilise insert_payload si l'attaque a été enregistrée avec succès
     if attack_id is not None:
         try:
             if service == "HTTP":
                 user_agent = extract_user_agent(data)
                 if user_agent:
-                    # insert_user_agent pourrait être une nouvelle fonction dans utils.db
                     conn_ua, cursor_ua = get_db()
                     cursor_ua.execute("INSERT INTO user_agents (ip, port, user_agent) VALUES (?, ?, ?)",
                                        (ip, port, user_agent))
@@ -104,13 +102,12 @@ def log_attack(ip: str, port: int, service: str, data: Union[str, bytes], method
 
                 payload = extract_http_payload(data, method)
                 if payload:
-                    insert_payload(attack_id, ip, port, service, payload) # Utilise la nouvelle fonction
+                    insert_payload(attack_id, ip, port, service, payload)
             elif service == "SSH":
                 payload_to_store = output_content if output_content is not None else data
-                insert_payload(attack_id, ip, port, service, payload_to_store) # Utilise la nouvelle fonction
-            # Aucune action de BDD ici pour FTP car le payload est la commande, déjà loguée
+                insert_payload(attack_id, ip, port, service, payload_to_store)
         except sqlite3.Error as e:
-            logger.error(f"Erreur insertion dans la table 'payloads' ou 'user_agents': {e}") # Message plus spécifique
+            logger.error(f"Erreur insertion dans la table 'payloads' ou 'user_agents': {e}")
 
     try:
         conn, cursor = get_db()

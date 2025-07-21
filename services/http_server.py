@@ -7,7 +7,7 @@ from utils.logger import log_attack # Utilise la fonction log_attack
 # Il répond à toutes les requêtes HTTP avec une page d'accueil générique
 # et enregistre les requêtes complètes des clients pour l'analyse.
 
-HTTP_PORT = 8080 # Port sur lequel le honeypot HTTP écoute.
+HTTP_PORT = 8080
 
 HTML_BODY = """<html>
 <head><title>Bienvenue sur notre site !</title></head>
@@ -26,15 +26,12 @@ def handle_client(client_socket: socket.socket, addr: tuple):
     try:
         data = client_socket.recv(4096).decode(errors='ignore') # Récupère la requête complète
         
-        # Encodage du corps HTML en bytes pour calculer la taille et l'envoyer
         encoded_html_body = HTML_BODY.encode('utf-8')
         content_length = len(encoded_html_body)
 
-        # Construction de la réponse HTTP complète avec l'en-tête Content-Length correct
         response_header = f"HTTP/1.1 200 OK\r\nServer: Apache/2.4.41 (Ubuntu)\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {content_length}\r\n\r\n"
         full_response_bytes = response_header.encode('utf-8') + encoded_html_body
 
-        # Log de la requête et de la réponse
         if data:
             log_attack(addr[0], addr[1], "HTTP", data, method="GET", output_content=full_response_bytes.decode('utf-8', errors='ignore').strip())
         else:

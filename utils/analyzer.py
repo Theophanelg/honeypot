@@ -30,7 +30,6 @@ def analyze_data(data: Union[str, bytes]) -> str:
     if ip4.search(data) or ip6.search(data):
         return "Possible IP Address"
 
-    # Logique de catégorisation des commandes SSH
     if data.strip() == "ls" or data.startswith("ls "):
         return "SSH - File Listing"
     if data.strip() == "cd" or data.startswith("cd ") or data.strip() == "pwd":

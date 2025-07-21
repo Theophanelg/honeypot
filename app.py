@@ -153,7 +153,6 @@ def export():
         response.headers["Content-Disposition"] = "attachment; filename=logs.json"
         return response
 
-    # CSV export
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=entries[0].keys())
     writer.writeheader()
@@ -163,5 +162,4 @@ def export():
     return response
 
 if __name__ == '__main__':
-    # Désactive le debug en production !
     app.run(debug=False, host='0.0.0.0', port=5000)

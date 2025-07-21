@@ -45,7 +45,6 @@ def handle_ftp_client(client_socket: socket.socket, addr: tuple):
         while True:
             raw_data_received = client_socket.recv(1024)
             
-            # --- LIGNES DE DEBUG FTP TEMPORAIRES (maintenues) ---
             print(f"DEBUG FTP: Raw data received: {raw_data_received!r}")
             if not raw_data_received:
                 print("DEBUG FTP: Received empty data, client disconnected.")
@@ -61,7 +60,6 @@ def handle_ftp_client(client_socket: socket.socket, addr: tuple):
                 arg = original_data_str.split(' ', 1)[1]
             
             print(f"DEBUG FTP: Parsed command: '{cmd}', argument: '{arg}'")
-            # --- FIN LIGNES DE DEBUG FTP TEMPORAIRES ---
 
             log_attack(ip, port, "FTP", original_data_str, output_content=original_data_str)
 
@@ -95,21 +93,14 @@ def handle_ftp_client(client_socket: socket.socket, addr: tuple):
                 elif cmd == "TYPE":
                     client_socket.sendall(b"200 Type set to I.\r\n")
                     log_attack(ip, port, "FTP", cmd, output_content="200 Type set to I")
-                # MODIFICATION ICI : Gère PASV et EPSV différemment et utilise la vraie IP
                 elif cmd == "PASV":
-                    # Utilise l'IP du honeypot (addr[0])
                     ip_parts = ip.split('.')
-                    # Simule un port, par exemple 100*256+20 = 25620
-                    # Pourrait être un port aléatoire ou configuré
                     port_p1 = 100
                     port_p2 = 20
                     pasv_response = f"227 Entering Passive Mode ({ip_parts[0]},{ip_parts[1]},{ip_parts[2]},{ip_parts[3]},{port_p1},{port_p2}).\r\n"
                     client_socket.sendall(pasv_response.encode())
                     log_attack(ip, port, "FTP", cmd, output_content=pasv_response.strip())
                 elif cmd == "EPSV":
-                    # Réponse pour Extended Passive Mode (EPSV)
-                    # Le format est "229 Entering Extended Passive Mode (|||port|)"
-                    # Simule le même port que PASV pour simplicité
                     port_epsv = 25620 # Le port 100*256+20
                     epsv_response = f"229 Entering Extended Passive Mode (|||{port_epsv}|)\r\n"
                     client_socket.sendall(epsv_response.encode())
